@@ -4,7 +4,7 @@ import requests
 app = Flask(__name__)
 
 # Yahan apna Telegram Bot Token daalein
-BOT_TOKEN = 'YAHAN_APNA_BOT_TOKEN_DALO'
+BOT_TOKEN = '9277826109:AAGmCkE4H42UTHds4JDeb37Y2FT9bunjNnY'
 
 # HTML Website Design
 HTML_PAGE = """
