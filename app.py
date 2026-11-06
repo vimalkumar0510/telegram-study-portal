@@ -5,15 +5,16 @@ import os
 
 app = Flask(__name__)
 
+# Apna Telegram Bot Token yahan daalein
 BOT_TOKEN = '9277826109:AAGmCkE4H42UTHds4JDeb37Y2FT9bunjNnY'
 DATA_FILE = 'database.json'
 
-# Agar database file nahi hai toh khali list bana lo
+# Database initialization
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, 'w') as f:
         json.dump([], f)
 
-# Website ka Design (Jisme saari videos/PDFs ki list apne aap dikhegi)
+# Website Design (Saari videos aur PDFs ki list yahan dikhegi)
 HTML_PAGE = """
 <!DOCTYPE html>
 <html lang="hi">
@@ -26,13 +27,17 @@ HTML_PAGE = """
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         .item { margin-bottom: 30px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
         video, iframe { width: 100%; height: 350px; border: none; margin-top: 10px; border-radius: 5px; }
+        h3 { color: #333; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>Mera Private Telegram Study Portal</h2>
-        <p>Saari videos aur PDFs yahan automatic load hongi.</p>
+        <p>Channel me upload karo, yahan automatic aayega!</p>
         <hr>
+        {% if items|length == 0 %}
+            <p>Abhi koi video ya PDF nahi hai. Channel me upload kijiye!</p>
+        {% endif %}
         {% for item in items %}
             <div class="item">
                 <h3>{{ item.title }}</h3>
@@ -57,23 +62,45 @@ def home():
         items = json.load(f)
     return render_template_string(HTML_PAGE, items=items)
 
-# Bot se naya item add karne ka secret URL (Ya aap ise automatic bhi kar sakte hain)
-@app.route('/add')
-def add_item():
-    title = request.args.get('title')
-    file_id = request.args.get('file_id')
-    f_type = request.args.get('type') # 'video' ya 'pdf'
+# Telegram Webhook - Channel post ya message ko automatic pakadne ke liye
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.get_json()
     
-    with open(DATA_FILE, 'r') as f:
-        items = json.load(f)
+    msg = None
+    if 'message' in data:
+        msg = data['message']
+    elif 'channel_post' in data:
+        msg = data['channel_post']
         
-    items.append({'title': title, 'file_id': file_id, 'type': f_type})
-    
-    with open(DATA_FILE, 'w') as f:
-        json.dump(items, f)
+    if msg:
+        title = msg.get('caption', 'Study Material')
         
-    return jsonify({"status": "Success", "message": "Item added successfully!"})
+        file_id = None
+        f_type = None
+        
+        if 'video' in msg:
+            file_id = msg['video']['file_id']
+            f_type = 'video'
+        elif 'document' in msg:
+            file_id = msg['document']['file_id']
+            f_type = 'pdf'
+            if not title or title == 'Study Material':
+                title = msg['document'].get('file_name', 'PDF Document')
+                
+        if file_id and f_type:
+            with open(DATA_FILE, 'r') as f:
+                items = json.load(f)
+                
+            # Check karein ki file pehle se database me hai ya nahi
+            if not any(i['file_id'] == file_id for i in items):
+                items.append({'title': title, 'file_id': file_id, 'type': f_type})
+                with open(DATA_FILE, 'w') as f:
+                    json.dump(items, f)
+                    
+    return jsonify({"status": "ok"})
 
+# Telegram se bina download kiye direct stream karne ke liye route
 @app.route('/stream')
 def stream():
     file_id = request.args.get('file_id')
