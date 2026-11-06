@@ -56,11 +56,28 @@ HTML_PAGE = """
 </html>
 """
 
-@app.route('/')
-def home():
-    with open(DATA_FILE, 'r') as f:
-        items = json.load(f)
-    return render_template_string(HTML_PAGE, items=items)
+@app.route('/stream')
+def stream():
+    file_id = request.args.get('file_id')
+    get_file_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}"
+    res = requests.get(get_file_url).json()
+    
+    if 'result' not in res or 'file_path' not in res['result']:
+        return "File path not found", 404
+        
+    file_path = res['result']['file_path']
+    download_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+    
+    # Telegram se video stream ko proper handle karne ke liye
+    req = requests.get(download_url, stream=True)
+    
+    def generate():
+        for chunk in req.iter_content(chunk_size=8192):
+            if chunk:
+                yield chunk
+                
+    content_type = 'video/mp4' if ('mp4' in file_path or 'mkv' in file_path) else 'application/pdf'
+    return Response(generate(), status=req.status_code, headers=dict(req.headers))
 
 # Telegram Webhook - Channel post ya message ko automatic pakadne ke liye
 @app.route('/webhook', methods=['POST'])
